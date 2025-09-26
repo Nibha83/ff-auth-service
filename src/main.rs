@@ -1,5 +1,8 @@
 mod config;
 mod models;
+mod controllers;
+mod routes;
+mod utils;
 
 use config::db::connect_cockroach;
 use actix_web::{web, App, HttpServer, HttpResponse, Result};
@@ -25,6 +28,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         App::new()
             .app_data(web::Data::new(cockroach_pool.clone()))
             .route("/health", web::get().to(health_check))
+            .configure(routes::customer::customer_routes)
     })
     .bind(("127.0.0.1", 8001))?
     .run()
