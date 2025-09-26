@@ -1,0 +1,16 @@
+version: "3"
+
+services:
+  cockroachdb:
+    image: cockroachdb/cockroach:v24.2.1   # use latest stable version
+    container_name: cockroachdb
+    command: start-single-node --insecure --store=/cockroach/cockroach-data
+    ports:
+      - "26257:26257"   # SQL client
+      - "8080:8080"     # Admin UI
+    volumes:
+      - cockroach_data:/cockroach/cockroach-data
+
+volumes:
+  cockroach_data:
+    driver: local
