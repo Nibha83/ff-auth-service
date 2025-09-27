@@ -2,6 +2,7 @@ use actix_web::{HttpResponse, Result, web};
 use crate::models::CreateCustomerRequest;
 use serde_json::json;
 use sqlx::PgPool;
+use crate::models::customer::LoginCustomer;
 use uuid::Uuid;
 use bcrypt::{hash, verify, DEFAULT_COST};
 
@@ -125,3 +126,35 @@ pub async fn create_customer(
 }
 
 // login customer
+
+pub async fn login_customer(
+    pool: web::Data<PgPool>,
+    customer: web::Json<LoginCustomer>,
+) -> Result<HttpResponse> {
+    let customer = customer.into_inner();
+    let query = "SELECT password FROM customers WHERE email = $1";
+    let result = sqlx::query_scalar::<_, String>(query)
+        .bind(&customer.email)
+        .fetch_one(&**pool)
+        .await;
+    match result {
+        Ok(hashed_password) => {
+            if verify_password(&customer.password, &hashed_password).unwrap_or(false) {
+                Ok(HttpResponse::Ok().json(json!({
+                    "Success": true,
+                    "message": "Login successful"
+                })))
+            } else {
+                Ok(HttpResponse::Unauthorized().json(json!({
+                    "Success": false,
+                    "message": "Invalid credentials"
+                })))
+            }
+        }
+        Err(_) => Ok(HttpResponse::Unauthorized().json(json!({
+            "Success": false,
+            "message": "Invalid credentials"
+        }))),
+    }
+}
+
