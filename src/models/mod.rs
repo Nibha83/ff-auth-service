@@ -1,3 +1,3 @@
 pub mod customer;
 
-pub use customer::{Customer, Address};
+pub use customer::CreateCustomerRequest;
