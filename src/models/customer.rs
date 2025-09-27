@@ -41,3 +41,10 @@ pub struct Address {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub updated_at: Option<DateTime<Utc>>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+
+pub struct LoginCustomer{
+    pub email: String,
+    pub password: String,
+}
