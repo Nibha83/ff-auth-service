@@ -212,3 +212,63 @@ pub async fn login_restaurant(
         }
     }
 }
+
+pub async fn get_restaurants(pool: web::Data<PgPool>) -> Result<HttpResponse> {
+    let query = "SELECT id, name, email, contact_number, address FROM restaurants";
+
+    let result = sqlx::query_as::<_, (Uuid, String, String, String, String)>(query)
+        .fetch_all(&**pool)
+        .await;
+
+    match result {  
+        Ok(restaurants) => {
+            Ok(HttpResponse::Ok().json(json!({
+                "Success": true,
+                "message": "Restaurants found",
+                "restaurants": restaurants
+            })))
+        }
+        Err(err) => {
+            eprintln!("Database error: {:?}", err);
+            Ok(HttpResponse::InternalServerError().json(json!({
+                "Success": false,
+                "message": "Error fetching restaurants"
+            })))
+        }
+    }
+}
+
+
+pub async fn get_restaurant_by_id(pool: web::Data<PgPool>, id: web::Path<Uuid>) -> Result<HttpResponse> {
+    let id = id.into_inner();
+
+    let query = "SELECT id, name, email, contact_number, address FROM restaurants WHERE id = $1";
+
+    let result = sqlx::query_as::<_, (Uuid, String, String, String, String)>(query)
+        .bind(id)
+        .fetch_one(&**pool)
+        .await;
+
+    match result {
+        Ok((id, name, email, contact_number, address)) => {
+            Ok(HttpResponse::Ok().json(json!({
+                "Success": true,
+                "message": "Restaurant found",
+                "restaurant": {
+                    "id": id,
+                    "name": name,
+                    "email": email,
+                    "contact number": contact_number,
+                    "address":address
+                }
+            })))
+        }
+        Err(err) => {
+            eprintln!("Database error: {:?}", err);
+            Ok(HttpResponse::NotFound().json(json!({
+                "Success": false,
+                "message": "Restaurant not found"
+            })))
+        }
+    }
+}
