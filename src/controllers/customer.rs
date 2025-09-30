@@ -1,5 +1,9 @@
-use actix_web::{HttpResponse, Result, web};
-use crate::models::CreateCustomerRequest;
+use actix_web::{HttpRequest, HttpResponse, Result, web};
+use crate::{
+    models::{CreateCustomerRequest, CreateAddressRequest},
+    utils::create_secret_token::generate_token,
+    middleware::auth::{extract_customer_from_token, get_customer_id_by_email}
+};
 use serde_json::json;
 use sqlx::PgPool;
 use crate::models::customer::LoginCustomer;
@@ -140,9 +144,11 @@ pub async fn login_customer(
     match result {
         Ok(hashed_password) => {
             if verify_password(&customer.password, &hashed_password).unwrap_or(false) {
+                  let token = generate_token(&customer.email.to_string(),&std::env::var("SECRET_KEY").unwrap());
                 Ok(HttpResponse::Ok().json(json!({
                     "Success": true,
-                    "message": "Login successful"
+                    "message": "Login successful",
+                    "token":token
                 })))
             } else {
                 Ok(HttpResponse::Unauthorized().json(json!({
@@ -158,3 +164,77 @@ pub async fn login_customer(
     }
 }
 
+// add address - requires authentication
+
+pub async fn add_address(
+    req: HttpRequest,
+    pool: web::Data<PgPool>,
+    address_data: web::Json<CreateAddressRequest>,
+) -> Result<HttpResponse> {
+    // Extract customer email from JWT token
+    let customer_email = match extract_customer_from_token(&req) {
+        Ok(email) => email,
+        Err(response) => return Ok(response),
+    };
+
+    // Get customer ID from email
+    let customer_id = match get_customer_id_by_email(&customer_email, &pool).await {
+        Ok(id) => id,
+        Err(response) => return Ok(response),
+    };
+
+    let address_data = address_data.into_inner();
+
+    // If this address is set as default, unset other default addresses for this customer
+    if address_data.is_default {
+        let update_query = "UPDATE addresses SET is_default = false WHERE customer_id = $1 AND is_default = true";
+        if let Err(err) = sqlx::query(update_query)
+            .bind(customer_id)
+            .execute(&**pool)
+            .await
+        {
+            eprintln!("Error updating default addresses: {:?}", err);
+            return Ok(HttpResponse::InternalServerError().json(json!({
+                "Success": false,
+                "message": "Error updating default addresses"
+            })));
+        }
+    }
+
+    // Insert new address
+    let address_id = Uuid::new_v4();
+    let query = "INSERT INTO addresses (id, customer_id, name, pincode, phone, address, is_default) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id";
+    let result = sqlx::query_scalar::<_, Uuid>(query)
+        .bind(address_id)
+        .bind(customer_id)
+        .bind(&address_data.name)
+        .bind(&address_data.pincode)
+        .bind(&address_data.phone)
+        .bind(&address_data.address)
+        .bind(address_data.is_default)
+        .fetch_one(&**pool)
+        .await;
+
+    match result {
+        Ok(created_address_id) => Ok(HttpResponse::Ok().json(json!({
+            "Success": true,
+            "message": "Address added successfully",
+            "address": {
+                "id": created_address_id,
+                "customer_id": customer_id,
+                "name": address_data.name,
+                "pincode": address_data.pincode,
+                "phone": address_data.phone,
+                "address": address_data.address,
+                "is_default": address_data.is_default,
+            }
+        }))),
+        Err(err) => {
+            eprintln!("Database error: {:?}", err);
+            Ok(HttpResponse::InternalServerError().json(json!({
+                "Success": false,
+                "message": "Error adding address"
+            })))
+        }
+    }
+}

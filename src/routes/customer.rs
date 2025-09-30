@@ -1,5 +1,6 @@
 use crate::controllers::customer::create_customer;
 use crate::controllers::customer::login_customer;
+use crate::controllers::customer::add_address;
 use actix_web::web;
 
 pub fn customer_routes(cfg: &mut web::ServiceConfig) {
@@ -10,5 +11,9 @@ pub fn customer_routes(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::resource("/customer/login")
             .route(web::post().to(login_customer)),
+    );
+    cfg.service(
+        web::resource("/customer/address")
+            .route(web::post().to(add_address)),
     );
 }

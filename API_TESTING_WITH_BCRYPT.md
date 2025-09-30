@@ -223,3 +223,191 @@ echo -e "\nAPI testing completed!"
 
 Make it executable: `chmod +x test_api.sh`
 Run it: `./test_api.sh`
+
+## 🏠 Add Address Endpoint (Authenticated)
+
+The add address endpoint requires authentication via JWT token. The customer ID is automatically extracted from the token.
+
+### 1. First, Login to Get Token
+```bash
+curl -X POST http://127.0.0.1:8001/customer/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "john.doe@example.com",
+    "password": "SecurePass123"
+  }'
+```
+
+**Expected Response:**
+```json
+{
+  "Success": true,
+  "message": "Login successful",
+  "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+}
+```
+
+### 2. Add Address with Token
+```bash
+# Replace YOUR_JWT_TOKEN with the actual token from login response
+curl -X POST http://127.0.0.1:8001/customer/address \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -d '{
+    "name": "Home",
+    "pincode": "12345",
+    "phone": "+1234567890",
+    "address": "123 Main Street, City, State",
+    "is_default": true
+  }'
+```
+
+**Expected Response:**
+```json
+{
+  "Success": true,
+  "message": "Address added successfully",
+  "address": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "customer_id": "customer-uuid-here",
+    "name": "Home",
+    "pincode": "12345",
+    "phone": "+1234567890",
+    "address": "123 Main Street, City, State",
+    "is_default": true
+  }
+}
+```
+
+### 3. Test Authentication Errors
+
+#### Missing Authorization Header
+```bash
+curl -X POST http://127.0.0.1:8001/customer/address \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Work",
+    "pincode": "54321",
+    "phone": "+9876543210",
+    "address": "456 Office Blvd, Business District",
+    "is_default": false
+  }'
+```
+
+**Expected Response (401 Unauthorized):**
+```json
+{
+  "Success": false,
+  "message": "Authorization header missing"
+}
+```
+
+#### Invalid Token Format
+```bash
+curl -X POST http://127.0.0.1:8001/customer/address \
+  -H "Content-Type: application/json" \
+  -H "Authorization: InvalidToken" \
+  -d '{
+    "name": "Work",
+    "pincode": "54321",
+    "phone": "+9876543210",
+    "address": "456 Office Blvd, Business District",
+    "is_default": false
+  }'
+```
+
+**Expected Response (401 Unauthorized):**
+```json
+{
+  "Success": false,
+  "message": "Authorization header must start with 'Bearer '"
+}
+```
+
+#### Expired/Invalid Token
+```bash
+curl -X POST http://127.0.0.1:8001/customer/address \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer invalid.jwt.token" \
+  -d '{
+    "name": "Work",
+    "pincode": "54321",
+    "phone": "+9876543210",
+    "address": "456 Office Blvd, Business District",
+    "is_default": false
+  }'
+```
+
+**Expected Response (401 Unauthorized):**
+```json
+{
+  "Success": false,
+  "message": "Invalid or expired token"
+}
+```
+
+## 🔄 Complete Workflow Test
+
+### Step-by-Step Test Script
+```bash
+#!/bin/bash
+
+echo "=== Complete Auth Service Test ==="
+
+# 1. Create a customer
+echo "1. Creating customer..."
+CUSTOMER_RESPONSE=$(curl -s -X POST http://127.0.0.1:8001/customer \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Test User",
+    "email": "test@example.com",
+    "password": "TestPass123",
+    "phone": "+1111111111"
+  }')
+echo "Customer creation: $CUSTOMER_RESPONSE"
+
+# 2. Login to get token
+echo -e "\n2. Logging in..."
+LOGIN_RESPONSE=$(curl -s -X POST http://127.0.0.1:8001/customer/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "test@example.com",
+    "password": "TestPass123"
+  }')
+echo "Login response: $LOGIN_RESPONSE"
+
+# Extract token (requires jq)
+TOKEN=$(echo $LOGIN_RESPONSE | jq -r '.token')
+echo "Extracted token: $TOKEN"
+
+# 3. Add address with token
+echo -e "\n3. Adding address..."
+ADDRESS_RESPONSE=$(curl -s -X POST http://127.0.0.1:8001/customer/address \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "name": "Home Address",
+    "pincode": "12345",
+    "phone": "+1234567890",
+    "address": "123 Test Street, Test City, TS 12345",
+    "is_default": true
+  }')
+echo "Address creation: $ADDRESS_RESPONSE"
+
+# 4. Test without token
+echo -e "\n4. Testing without token (should fail)..."
+NO_TOKEN_RESPONSE=$(curl -s -X POST http://127.0.0.1:8001/customer/address \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Should Fail",
+    "pincode": "00000",
+    "phone": "+0000000000",
+    "address": "Should not work",
+    "is_default": false
+  }')
+echo "No token test: $NO_TOKEN_RESPONSE"
+
+echo -e "\n=== Test Complete ==="
+```
+
+Save as `test_complete_workflow.sh`, make executable with `chmod +x test_complete_workflow.sh`, and run with `./test_complete_workflow.sh`
