@@ -181,11 +181,15 @@ pub async fn login_restaurant(
     match result {
         Ok((id, hashed_password)) => {
             match verify_password(&login_request.password, &hashed_password) {
-                Ok(true) => Ok(HttpResponse::Ok().json(json!({
+                
+                Ok(true) => {
+                    let token = generate_token(&id.to_string(),&std::env::var("SECRET_KEY").unwrap());
+                    Ok(HttpResponse::Ok().json(json!({
                     "Success": true,
                     "message": "Login successful",
-                    "restaurant_id": id
-                }))),
+                    "restaurant_id": id,
+                    "token": token
+                })))},
                 Ok(false) => Ok(HttpResponse::Unauthorized().json(json!({
                     "Success": false,
                     "message": "Invalid credentials"
