@@ -3,6 +3,7 @@ mod models;
 mod controllers;
 mod routes;
 mod utils;
+mod middleware;
 
 use config::db::connect_cockroach;
 use actix_web::{web, App, HttpServer, HttpResponse, Result};

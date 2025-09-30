@@ -11,6 +11,17 @@ pub struct CreateCustomerRequest {
     pub phone: String,
 }
 
+// DTO for adding a new address (without customer_id - will be extracted from token)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateAddressRequest {
+    pub name: String,
+    pub pincode: String,
+    pub phone: String,
+    pub address: String,
+    #[serde(default)]
+    pub is_default: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Customer {
     pub id: Uuid,
