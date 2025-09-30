@@ -1,6 +1,8 @@
 use uuid::Uuid;
+use serde::{Serialize, Deserialize};
 
-struct RestaurantInput{
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateRestaurantRequest{
     pub email: String,
     pub password: String,
     pub name: String,
@@ -9,7 +11,9 @@ struct RestaurantInput{
     pub cuisines: Vec<Cuisine>
 }
 
-struct Restaurant{
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Restaurant{
     pub id: Uuid,
     pub email: String,
     pub password: String,
@@ -19,7 +23,15 @@ struct Restaurant{
     pub cuisines: Vec<Cuisine>
 }
 
-struct Cuisine{
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Cuisine{
     pub name: String,
     pub description: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RestaurantLoginRequest{
+    pub email: String,
+    pub password: String,
 }
