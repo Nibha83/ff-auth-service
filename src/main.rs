@@ -30,6 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .route("/health", web::get().to(health_check))
             .configure(routes::customer::customer_routes)
             .configure(routes::restaurant::restaurant_routes)
+            .configure(routes::delivery_partner::delivery_partner_routes)
     })
     .bind(("127.0.0.1", 8001))?
     .run()
