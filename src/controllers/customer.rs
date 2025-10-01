@@ -1,14 +1,15 @@
-use actix_web::{HttpRequest, HttpResponse, Result, web};
+use crate::controllers::customer;
+use crate::models::customer::LoginCustomer;
 use crate::{
-    models::{CreateCustomerRequest, CreateAddressRequest},
+    middleware::auth::{extract_customer_from_token, get_customer_id_by_email},
+    models::{CreateAddressRequest, CreateCustomerRequest, CustomerResponse},
     utils::create_secret_token::generate_token,
-    middleware::auth::{extract_customer_from_token, get_customer_id_by_email}
 };
+use actix_web::{HttpRequest, HttpResponse, Result, web};
+use bcrypt::{DEFAULT_COST, hash, verify};
 use serde_json::json;
 use sqlx::PgPool;
-use crate::models::customer::LoginCustomer;
 use uuid::Uuid;
-use bcrypt::{hash, verify, DEFAULT_COST};
 
 // Helper function to validate password strength
 fn validate_password(password: &str) -> Result<(), String> {
@@ -106,9 +107,10 @@ pub async fn create_customer(
             eprintln!("Database error: {:?}", err);
 
             // Check if it's a unique constraint violation (duplicate email)
-            let error_message = if err.to_string().contains("duplicate key") ||
-                                  err.to_string().contains("unique constraint") ||
-                                  err.to_string().contains("customers_email_key") {
+            let error_message = if err.to_string().contains("duplicate key")
+                || err.to_string().contains("unique constraint")
+                || err.to_string().contains("customers_email_key")
+            {
                 "Email address already exists"
             } else {
                 "Error creating customer"
@@ -144,7 +146,10 @@ pub async fn login_customer(
     match result {
         Ok(hashed_password) => {
             if verify_password(&customer.password, &hashed_password).unwrap_or(false) {
-                  let token = generate_token(&customer.email.to_string(),&std::env::var("SECRET_KEY").unwrap());
+                let token = generate_token(
+                    &customer.email.to_string(),
+                    &std::env::var("SECRET_KEY").unwrap(),
+                );
                 Ok(HttpResponse::Ok().json(json!({
                     "Success": true,
                     "message": "Login successful",
@@ -187,7 +192,8 @@ pub async fn add_address(
 
     // If this address is set as default, unset other default addresses for this customer
     if address_data.is_default {
-        let update_query = "UPDATE addresses SET is_default = false WHERE customer_id = $1 AND is_default = true";
+        let update_query =
+            "UPDATE addresses SET is_default = false WHERE customer_id = $1 AND is_default = true";
         if let Err(err) = sqlx::query(update_query)
             .bind(customer_id)
             .execute(&**pool)
@@ -238,3 +244,81 @@ pub async fn add_address(
         }
     }
 }
+
+pub async fn get_customer(req: HttpRequest, pool: web::Data<PgPool>) -> Result<HttpResponse> {
+    // Extract customer email from JWT token
+    let customer_email = match extract_customer_from_token(&req) {
+        Ok(email) => email,
+        Err(response) => return Ok(response),
+    };
+    let query =
+        "SELECT id, name, email, phone, created_at, updated_at FROM customers WHERE email = $1";
+    let result = sqlx::query_as::<_, CustomerResponse>(query)
+        .bind(&customer_email)
+        .fetch_one(&**pool)
+        .await;
+    match result {
+        Ok(customer) => Ok(HttpResponse::Ok().json(json!({
+            "Success": true,
+            "message": "Customer fetched successfully",
+            "customer": customer
+        }))),
+        Err(err) => {
+            eprintln!("Database error: {:?}", err);
+            Ok(HttpResponse::InternalServerError().json(json!({
+                "Success": false,
+                "message": "Error fetching customer"
+            })))
+        }
+    }
+}
+
+pub async fn get_customers(pool: web::Data<PgPool>) -> Result<HttpResponse> {
+    let query = "SELECT id, name, email, phone, created_at, updated_at FROM customers";
+    let customer_length: usize;
+    let result = sqlx::query_as::<_, CustomerResponse>(query)
+        .fetch_all(&**pool)
+        .await;
+
+    match result {
+        Ok(customers) => {
+            let customer_length = customers.len();
+            Ok(HttpResponse::Ok().json(json!({
+                "Success": true,
+                "message": "Customers fetched successfully",
+                "customers": customers,
+                "length": customer_length
+            })))
+        }
+        Err(_) => {
+            eprintln!("Database error");
+            Ok(HttpResponse::InternalServerError().json(json!({
+                "Success": false,
+                "message": "Error fetching customers"
+            })))
+        }
+    }
+}
+
+pub async fn get_customer_by_id(pool: web::Data<PgPool>, id: web::Path<Uuid>) -> Result<HttpResponse> {
+    let query = "SELECT id, name, email, phone, created_at, updated_at FROM customers WHERE id = $1";
+    let result = sqlx::query_as::<_, CustomerResponse>(query)
+        .bind(id.into_inner())
+        .fetch_one(&**pool)
+        .await;
+    match result {
+        Ok(customer) => Ok(HttpResponse::Ok().json(json!({
+            "Success": true,
+            "message": "Customer fetched successfully",
+            "customer": customer
+        }))),
+        Err(_) => {
+            eprintln!("Database error");
+            Ok(HttpResponse::InternalServerError().json(json!({
+                "Success": false,
+                "message": "Error fetching customer"
+            })))
+        }
+    }
+}
+
