@@ -1,3 +1,4 @@
+use sqlx::prelude::FromRow;
 use uuid::Uuid;
 use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
@@ -22,7 +23,18 @@ pub struct CreateAddressRequest {
     pub is_default: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+// Simple customer response without addresses (for database queries)
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct CustomerResponse {
+    pub id: Uuid,
+    pub name: String,
+    pub email: String,
+    pub phone: String,
+    pub created_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize,FromRow)]
 pub struct Customer {
     pub id: Uuid,
     pub name: String,
@@ -37,7 +49,7 @@ pub struct Customer {
     pub updated_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Address {
     pub id: Uuid,
     pub customer_id: Uuid,
