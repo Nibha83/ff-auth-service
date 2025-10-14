@@ -1,4 +1,4 @@
-use crate::controllers::customer;
+
 use crate::models::customer::LoginCustomer;
 use crate::{
     middleware::auth::{extract_customer_from_token, get_customer_id_by_email},
@@ -139,26 +139,38 @@ pub async fn login_customer(
 ) -> Result<HttpResponse> {
     let customer = customer.into_inner();
     let query = "SELECT id, password FROM customers WHERE email = $1";
-    let result = sqlx::query_scalar::<_, String>(query)
+    let result = sqlx::query_as::<_, (Uuid, String)>(query)
         .bind(&customer.email)
         .fetch_one(&**pool)
         .await;
     match result {
-        Ok(hashed_password) => {
+        Ok((customer_id, hashed_password)) => {
             if verify_password(&customer.password, &hashed_password).unwrap_or(false) {
                 let access_token = generate_token(
                     &customer.email.to_string(),
                     &std::env::var("SECRET_KEY").unwrap(),
                 );
                 let access_token_id = Uuid::new_v4();
-                let access_token_query="INSERT INTO access_tokens (id, access_token, user_role, user_id) VALUES ($1, $2, $3, $4) RETURNING id";
-                let access_token_result= sqlx::query_scalar::<_, Uuid>(access_token_query)
+                let access_token_query="INSERT INTO access_tokens (id, access_token, user_role, user_id, created_at, updated_at) VALUES ($1, $2, $3, $4, now(), now()) RETURNING id";
+                let _access_token_result= sqlx::query_scalar::<_, Uuid>(access_token_query)
                     .bind(access_token_id)
                     .bind(&access_token)
                     .bind("customer")
-                    .bind(&customer.id)
+                    .bind(&customer_id)
                     .fetch_one(&**pool)
                     .await;
+
+                match _access_token_result {
+                    Ok(_) => (),
+                    Err(err) => {
+                        eprintln!("Database error: {:?}", err);
+                        return Ok(HttpResponse::InternalServerError().json(json!({
+                            "Success": false,
+                            "message": "Error creating access token"
+                        })));
+                    }
+                }
+
                 Ok(HttpResponse::Ok().json(json!({
                     "Success": true,
                     "message": "Login successful",
@@ -284,7 +296,6 @@ pub async fn get_customer(req: HttpRequest, pool: web::Data<PgPool>) -> Result<H
 
 pub async fn get_customers(pool: web::Data<PgPool>) -> Result<HttpResponse> {
     let query = "SELECT id, name, email, phone, created_at, updated_at FROM customers";
-    let customer_length: usize;
     let result = sqlx::query_as::<_, CustomerResponse>(query)
         .fetch_all(&**pool)
         .await;

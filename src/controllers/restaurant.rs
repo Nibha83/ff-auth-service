@@ -93,27 +93,24 @@ pub async fn create_restaurant(
         Ok(restaurant_id) => {
             for cuisine in restaurant.cuisines {
                 let id = Uuid::new_v4();
-                let result_cuisine: Result<Uuid, sqlx::Error> = Ok(id);
-                if cuisine.description.is_none() {
+                let result_cuisine = if cuisine.description.is_none() {
                     let query_cuisine = "INSERT INTO cuisines (id, restaurant_id, name) VALUES ($1, $2, $3) returning id";
-                    let result_cuisine = sqlx::query_scalar::<_, Uuid>(query_cuisine)
+                    sqlx::query_scalar::<_, Uuid>(query_cuisine)
                         .bind(id)
                         .bind(restaurant_id)
                         .bind(cuisine.name)
                         .fetch_one(&**pool)
                         .await
-                        .unwrap();
                 } else {
                     let query_cuisine = "INSERT INTO cuisines (id, restaurant_id, name, description) VALUES ($1, $2, $3, $4) returning id";
-                    let result_cuisine = sqlx::query_scalar::<_, Uuid>(query_cuisine)
+                    sqlx::query_scalar::<_, Uuid>(query_cuisine)
                         .bind(id)
                         .bind(restaurant_id)
                         .bind(cuisine.name)
                         .bind(cuisine.description)
                         .fetch_one(&**pool)
                         .await
-                        .unwrap();
-                }
+                };
                 match result_cuisine {
                     Ok(cuisine_id) => {
                         println!("Cuisine created successfully with id: {}", cuisine_id);
