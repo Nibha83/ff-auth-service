@@ -1,4 +1,4 @@
-
+use crate::controllers::customer;
 use crate::models::customer::LoginCustomer;
 use crate::{
     middleware::auth::{extract_customer_from_token, get_customer_id_by_email},
@@ -189,7 +189,6 @@ pub async fn login_customer(
         }))),
     }
 }
-
 // add address - requires authentication
 
 pub async fn add_address(
@@ -296,6 +295,7 @@ pub async fn get_customer(req: HttpRequest, pool: web::Data<PgPool>) -> Result<H
 
 pub async fn get_customers(pool: web::Data<PgPool>) -> Result<HttpResponse> {
     let query = "SELECT id, name, email, phone, created_at, updated_at FROM customers";
+    let customer_length: usize;
     let result = sqlx::query_as::<_, CustomerResponse>(query)
         .fetch_all(&**pool)
         .await;
