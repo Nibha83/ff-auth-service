@@ -138,7 +138,7 @@ pub async fn login_customer(
     customer: web::Json<LoginCustomer>,
 ) -> Result<HttpResponse> {
     let customer = customer.into_inner();
-    let query = "SELECT password FROM customers WHERE email = $1";
+    let query = "SELECT id, password FROM customers WHERE email = $1";
     let result = sqlx::query_scalar::<_, String>(query)
         .bind(&customer.email)
         .fetch_one(&**pool)
@@ -146,14 +146,23 @@ pub async fn login_customer(
     match result {
         Ok(hashed_password) => {
             if verify_password(&customer.password, &hashed_password).unwrap_or(false) {
-                let token = generate_token(
+                let access_token = generate_token(
                     &customer.email.to_string(),
                     &std::env::var("SECRET_KEY").unwrap(),
                 );
+                let access_token_id = Uuid::new_v4();
+                let access_token_query="INSERT INTO access_tokens (id, access_token, user_role, user_id) VALUES ($1, $2, $3, $4) RETURNING id";
+                let access_token_result= sqlx::query_scalar::<_, Uuid>(access_token_query)
+                    .bind(access_token_id)
+                    .bind(&access_token)
+                    .bind("customer")
+                    .bind(&customer.id)
+                    .fetch_one(&**pool)
+                    .await;
                 Ok(HttpResponse::Ok().json(json!({
                     "Success": true,
                     "message": "Login successful",
-                    "token":token
+                    "token":access_token
                 })))
             } else {
                 Ok(HttpResponse::Unauthorized().json(json!({
